@@ -1,0 +1,1536 @@
+---
+title: "Document For Final Project"
+author: "Zixin Ding"
+date: "April 24, 2017"
+output:
+  html_document: default
+  pdf_document: default
+fig_caption: yes
+always_allow_html: yes
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+## Final Project Overview with focus on residential fire
+To begin with, I first look at the release note accompanying with 10 years datasets and found a guide to analyze the NFIRS data. **NFIRS 5.0 Fire Data Analysis Guidelines and Issues.pdf**
+<https://www.usfa.fema.gov/downloads/pdf/nfirs/NFIRS_Spec_2015.pdf> and <https://www.usfa.fema.gov/downloads/pdf/nfirs/nfirs_data_analysis_guidelines_issues.pdf>, one for 2015 and the other for 2011. I read the basic incident file for 10 years and do most analysis on these files, except for the last section, I use incident address file for ggmaps. The topics and findings are listed below for each section.
+
+```{r}
+memory.limit(20*1024*1024*1024)
+# load all libraries
+require("readr")
+require("plotly")
+require("bigmemory")
+require("biganalytics")
+require("bigtabulate")
+library("foreign")
+require("tables")
+library("dplyr")
+library("tidyr")
+library("knitr")
+library("ggplot2")
+require("scales")
+require("ff")
+require("ffbase")
+library("ggthemes")
+require(gridExtra)
+library("data.table")
+
+# We only keep 400-499 codes in property use as they are only for residence
+basic2006<-read.dbf("2006/basicincident.dbf")
+basic2007<-read.dbf("2007/basicincident.dbf")
+basic2008<－read.dbf("2008/basicincident.dbf")
+basic2009<-read.dbf("2009/basicincident.dbf")
+basic2010<-read.dbf("2010/basicincident.dbf")
+#2006
+needle<-"4"
+i<-substr(basic2006$PROP_USE, 0, 1)
+a<-grep(needle, i, value = F)
+resi2006<-basic2006[a,]
+#2007
+i<-substr(basic2007$PROP_USE, 0, 1)
+a<-grep(needle, i, value = F)
+resi2007<-basic2007[a,]
+#2008
+i<-substr(basic2008$PROP_USE, 0, 1)
+a<-grep(needle, i, value = F)
+resi2008<-basic2008[a,]
+#2009
+i<-substr(basic2009$PROP_USE, 0, 1)
+a<-grep(needle, i, value = F)
+resi2009<-basic2009[a,]
+#2010
+i<-substr(basic2010$PROP_USE, 0, 1)
+a<-grep(needle, i, value = F)
+resi2010<-basic2010[a,]
+rm(a,i)
+
+r06<-nrow(basic2006)
+r07<-nrow(basic2007)
+r08<-nrow(basic2008)
+r09<-nrow(basic2009)
+r10<-nrow(basic2010)
+
+rm(basic2006, basic2007, basic2008, basic2009, basic2010)
+
+basic2011<-read.dbf("2011/basicincident.dbf")
+basic2012<-fread(file="2012/basicincident.txt", sep ="^")
+basic2013<-fread(file="2013/basicincident.txt", sep ="^")
+basic2014<-fread(file="2014/basicincident.txt", sep = "^")
+
+#2011
+i<-substr(basic2011$PROP_USE, 0, 1)
+a<-grep(needle, i, value = F)
+resi2011<-basic2011[a,]
+r11<-nrow(basic2011)
+rm(basic2011)
+# 2012
+i<-substr(basic2012$PROP_USE, 0, 1)
+a<-grep(needle, i, value = F)
+resi2012<-basic2012[a,]
+r12<-nrow(basic2012)
+rm(basic2012)
+# 2013
+i<-substr(basic2013$PROP_USE, 0, 1)
+a<-grep(needle, i, value = F)
+resi2013<-basic2013[a,]
+r13<-nrow(basic2013)
+rm(basic2013)
+# 2014
+i<-substr(basic2014$PROP_USE, 0, 1)
+a<-grep(needle, i, value = F)
+resi2014<-basic2014[a,]
+r14<-nrow(basic2014)
+rm(basic2014)
+
+basic2015<-fread(file="2015/basicincident.txt", sep="^")
+
+
+r15<-nrow(basic2015)
+
+
+#2015
+i<-substr(basic2015$PROP_USE, 0, 1)
+a<-grep(needle, i, value = F)
+resi2015<-basic2015[a,]
+
+rm(basic2015)
+rm(needle, i, a)
+
+
+
+
+```
+## Section 1: Proportion of Residential Fire
+All incidents that relate to property used for residential purposes will have a property use (PROP_USE) code in the 400–499 range. So I load all the basic incidents file for 10 years and only keep all the residential fire data for each year and calculate the rows for the whole basic incident file respectively.
+![Code for Incident Type](Type of fire by property use.PNG)
+![Code for Incident Type](Type of fire by property use 2.PNG)
+As we can see in table 1 and figure 0, the proportion of residential fire is increasing and the proportion of nonresidential fires are decreasing, approximately. So I do a hypothesis test for residential fire proportion and find the p-value is so small that we reject the null hypothesis, so there is a significant difference in proportion of residential fire for 2006 and 2015. So, we might wonder how the trend looks like for 10 years, I do the hypothesis test for linear regression. From the linear regression hypothesis testing result, we can see that since p-value is so small, we can reject the null hypothesis that β = 0. Hence there is a significant relationship between the year and the proportion in the linear regression model of the 10 years data set.  
+```{r}
+a1<-round(nrow(resi2006)/r06*100,2)
+a2<-round((r06-nrow(resi2006))/r06*100,2)
+a3<-as.integer(r06,0)
+
+b1<-round(nrow(resi2007)/r07*100,2)
+b2<-round((r07-nrow(resi2007))/r07*100,2)
+b3<-as.integer(r07,0)
+
+c1<-round(nrow(resi2008)/r08*100,2)
+c2<-round((r08-nrow(resi2008))/r08*100,2)
+c3<-as.integer(r08,0)
+
+d1<-round(nrow(resi2009)/r09*100,2)
+d2<-round((r09-nrow(resi2009))/r09*100,2)
+d3<-as.integer(r09,0)
+
+e1<-round(nrow(resi2010)/r10*100,2)
+e2<-round((r10-nrow(resi2010))/r10*100,2)
+e3<-as.integer(r10,0)
+
+f1<-round(nrow(resi2011)/r11*100,2)
+f2<-round((r11-nrow(resi2011))/r11*100,2)
+f3<-as.integer(r11,0)
+
+g1<-round(nrow(resi2012)/r12*100,2)
+g2<-round((r12-nrow(resi2012))/r12*100,2)
+g3<-as.integer(r12,0)
+
+h1<-round(nrow(resi2013)/r13*100,2)
+h2<-round((r13-nrow(resi2013))/r13*100,2)
+h3<-as.integer(r13,0)
+
+i1<-round(nrow(resi2014)/r14*100,2)
+i2<-round((r14-nrow(resi2014))/r14*100,2)
+i3<-as.integer(r14,0)
+
+j1<-round(nrow(resi2015)/r15*100,2)
+j2<-round((r15-nrow(resi2015))/r15*100,2)
+j3<-as.integer(r15,0)
+table1<-data.frame("Year2006"=c(a1, a2, a3),
+                   "Year2007"=c(b1, b2, b3),
+                   "Year2008"=c(c1, c2, c3),
+                   "Year2009"=c(d1,d2,d3),
+                   "Year2010"=c(e1, e2, e3),
+                   "Year2011"=c(f1,f2,f3),
+                   "Year2012"=c(g1,g2,g3),
+                   "Year2013"=c(h1,h2,h3),
+                   "Year2014"=c(i1,i2,i3),
+                   "Year2015"=c(j1,j2,j3))
+rownames(table1)<-c("Residential %", "Nonresidential %", "Total Number of Fires")
+
+
+kable(table1, format = "html", caption = "Table1. Residential and non-residential proportion during 2006-2015", digits=2)
+
+```
+
+
+```{r}
+prop.test(x=c(nrow(resi2006), nrow(resi2015)), n=c(r06, r15), alternative = "less", correct = F, conf.level = 0.05)
+```
+
+
+```{r}
+residential<-c(a1,b1,c1,d1,e1, f1, g1, h1, i1, j1)
+non<-c(a2,b2,c2,d2, e2,f2, g2, h2, i2, j2)
+year<-c(2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015)
+num<-c(residential, non)
+Firetype<-rep(c("residential", "non"), each=10, times=1)
+
+plot2<-data.frame(num, Firetype, year)
+plot2$year<-as.factor(plot2$year)
+
+f0<-ggplot(plot2, aes(x=year, y=num, group=Firetype)) +
+  geom_line(aes(color=Firetype))+
+  geom_point(aes(color=Firetype))+ggtitle("Figure 0. Proportion of Residential Fire during 2006-2015")+theme_economist()+ylim(c(20,70))+xlab("YEAR")+ylab("Percent%")
+
+f0
+```
+
+```{r}
+# do a significance test for linear regression of residential fire porportion trends
+resiregre<-data.frame(residential, year)
+residential.lm = lm(residential ~ year, data=resiregre)
+options("scipen"=100, "digits"=4)
+summary(residential.lm)
+# Since p-value is so small, we reject the null hypothesis the β = 0
+# Hence there is a significant relationship between the variables in the linear regression model of the data set faithful.
+```
+
+```{r}
+# remove unnecessary variables
+rm(residential.lm, resiregre, fo, plot2, table1)
+```
+
+## Section 2: When most residential fire occurs
+### HOUR
+![Code for Alarm](Alarm Code.PNG)
+I decide to measure the fire occurence based on when the alarms start to ring. The reason is that in basic incident file, ALARM column is not empty for each fire and this time is always considered as the nearest record to the time of a fire to start. I still use basic incidents file in this section and separate column ALARM for each year's file into 5 parts(year, month, day, hour, mi). Since mi is not useful for my analysis, I delete mi column. For this section, I only look at hour and month column, generated by my separation.
+As shown in Figure 1, residential fires occurred most frequently during evening, particularly 5.pm-7.pm for 2006. If we look at a broader sense, including 2006-2010 data, figure 2 shows the results. As we can see in the furth result, besides nonconfined residential fire, cooking fire is the majority type of confined resdiential fire, takes up approximately 33% residential fire.
+```{r}
+# Converting Code in Alarm (MMDDYYYYHHMI) to MM DD YYYY HH and delete MI since we don't need them
+resi2006<-separate(resi2006, col = ALARM, sep = -5, into=c("ALARM", "ALARMDAY"))
+resi2006<-separate(resi2006, col = ALARMDAY, sep = -3, into=c("HOUR", "MI"))
+#Delete unuseful terms only keeping DDMMYYYY
+resi2006$MI<-NULL
+resi2006<-separate(resi2006, col = ALARM, sep = -5, into=c("ALARM", "YEAR"))
+resi2006<-separate(resi2006, col = ALARM, sep = -3, into=c("ALARM", "DAY"))
+colnames(resi2006)[11]<-c("MONTH")
+
+Figure1<-ggplot(resi2006, aes(HOUR))+geom_bar(aes(y=(..count..)/sum(..count..)))+ggtitle("Figure 1.Residential Fires Occur by Alarm(2006)")+theme_economist()+ylab("Percent of Residential Fire")+xlab("Time of Alarm")
+
+Figure1
+```
+
+```{r}
+rm(Figure1)
+# Repeat the process for 2007-2015
+# 2007 
+resi2007<-separate(resi2007, col = ALARM, sep = -5, into=c("ALARM", "ALARMDAY"))
+resi2007<-separate(resi2007, col = ALARMDAY, sep = -3, into=c("HOUR", "MI"))
+#Delete unuseful terms only keeping DDMMYYYY
+resi2007$MI<-NULL
+resi2007<-separate(resi2007, col = ALARM, sep = -5, into=c("ALARM", "YEAR"))
+resi2007<-separate(resi2007, col = ALARM, sep = -3, into=c("ALARM", "DAY"))
+colnames(resi2007)[11]<-c("MONTH")
+resi2007$MONTH<-as.factor(resi2007$MONTH)
+
+#2008
+resi2008<-separate(resi2008, col = ALARM, sep = -5, into=c("ALARM", "ALARMDAY"))
+resi2008<-separate(resi2008, col = ALARMDAY, sep = -3, into=c("HOUR", "MI"))
+#Delete unuseful terms only keeping DDMMYYYY
+resi2008$MI<-NULL
+resi2008<-separate(resi2008, col = ALARM, sep = -5, into=c("ALARM", "YEAR"))
+resi2008<-separate(resi2008, col = ALARM, sep = -3, into=c("ALARM", "DAY"))
+colnames(resi2008)[11]<-c("MONTH")
+resi2008$MONTH<-as.factor(resi2008$MONTH)
+
+#2009
+resi2009<-separate(resi2009, col = ALARM, sep = -5, into=c("ALARM", "ALARMDAY"))
+resi2009<-separate(resi2009, col = ALARMDAY, sep = -3, into=c("HOUR", "MI"))
+#Delete unuseful terms only keeping DDMMYYYY
+resi2009$MI<-NULL
+resi2009<-separate(resi2009, col = ALARM, sep = -5, into=c("ALARM", "YEAR"))
+resi2009<-separate(resi2009, col = ALARM, sep = -3, into=c("ALARM", "DAY"))
+colnames(resi2009)[11]<-c("MONTH")
+resi2009$MONTH<-as.factor(resi2009$MONTH)
+
+#2010
+resi2010<-separate(resi2010, col = ALARM, sep = -5, into=c("ALARM", "ALARMDAY"))
+resi2010<-separate(resi2010, col = ALARMDAY, sep = -3, into=c("HOUR", "MI"))
+#Delete unuseful terms only keeping DDMMYYYY
+resi2010$MI<-NULL
+resi2010<-separate(resi2010, col = ALARM, sep = -5, into=c("ALARM", "YEAR"))
+resi2010<-separate(resi2010, col = ALARM, sep = -3, into=c("ALARM", "DAY"))
+colnames(resi2010)[11]<-c("MONTH")
+resi2010$MONTH<-as.factor(resi2010$MONTH)
+
+#2011
+resi2011<-separate(resi2011, col = ALARM, sep = -5, into=c("ALARM", "ALARMDAY"))
+resi2011<-separate(resi2011, col = ALARMDAY, sep = -3, into=c("HOUR", "MI"))
+#Delete unuseful terms only keeping DDMMYYYY
+resi2011$MI<-NULL
+resi2011<-separate(resi2011, col = ALARM, sep = -5, into=c("ALARM", "YEAR"))
+resi2011<-separate(resi2011, col = ALARM, sep = -3, into=c("ALARM", "DAY"))
+colnames(resi2011)[11]<-c("MONTH")
+resi2011$MONTH<-as.factor(resi2011$MONTH)
+
+#2012
+resi2012<-separate(resi2012, col = ALARM, sep = -5, into=c("ALARM", "ALARMDAY"))
+resi2012<-separate(resi2012, col = ALARMDAY, sep = -3, into=c("HOUR", "MI"))
+#Delete unuseful terms only keeping DDMMYYYY
+resi2012$MI<-NULL
+resi2012<-separate(resi2012, col = ALARM, sep = -5, into=c("ALARM", "YEAR"))
+resi2012<-separate(resi2012, col = ALARM, sep = -3, into=c("ALARM", "DAY"))
+colnames(resi2012)[11]<-c("MONTH")
+resi2012$MONTH<-as.factor(resi2012$MONTH)
+#2013
+resi2013<-separate(resi2013, col = ALARM, sep = -5, into=c("ALARM", "ALARMDAY"))
+resi2013<-separate(resi2013, col = ALARMDAY, sep = -3, into=c("HOUR", "MI"))
+#Delete unuseful terms only keeping DDMMYYYY
+resi2013$MI<-NULL
+resi2013<-separate(resi2013, col = ALARM, sep = -5, into=c("ALARM", "YEAR"))
+resi2013<-separate(resi2013, col = ALARM, sep = -3, into=c("ALARM", "DAY"))
+colnames(resi2013)[11]<-c("MONTH")
+resi2013$MONTH<-as.factor(resi2013$MONTH)
+#2014
+resi2014<-separate(resi2014, col = ALARM, sep = -5, into=c("ALARM", "ALARMDAY"))
+resi2014<-separate(resi2014, col = ALARMDAY, sep = -3, into=c("HOUR", "MI"))
+#Delete unuseful terms only keeping DDMMYYYY
+resi2014$MI<-NULL
+resi2014<-separate(resi2014, col = ALARM, sep = -5, into=c("ALARM", "YEAR"))
+resi2014<-separate(resi2014, col = ALARM, sep = -3, into=c("ALARM", "DAY"))
+colnames(resi2014)[11]<-c("MONTH")
+resi2014$MONTH<-as.factor(resi2014$MONTH)
+#2015
+resi2015<-separate(resi2015, col = ALARM, sep = -5, into=c("ALARM", "ALARMDAY"))
+resi2015<-separate(resi2015, col = ALARMDAY, sep = -3, into=c("HOUR", "MI"))
+#Delete unuseful terms only keeping DDMMYYYY
+resi2015$MI<-NULL
+resi2015<-separate(resi2015, col = ALARM, sep = -5, into=c("ALARM", "YEAR"))
+resi2015<-separate(resi2015, col = ALARM, sep = -3, into=c("ALARM", "DAY"))
+colnames(resi2015)[11]<-c("MONTH")
+resi2015$MONTH<-as.factor(resi2015$MONTH)
+
+# So I separate 10 years(2006-2015) data into 2 sets
+# (2006-2010) (2011-2015)
+
+
+
+h0610<-c(resi2006$HOUR, resi2007$HOUR, resi2008$HOUR, resi2009$HOUR, resi2010$HOUR)
+hour5y<-as.data.frame(h0610)
+rm(h0610)
+h1115<-c(resi2011$HOUR, resi2012$HOUR, resi2013$HOUR, resi2014$HOUR, resi2015$HOUR)
+hour5y2<-as.data.frame(h1115)
+rm(h1115)
+
+# plot 5 years graph 2006-2010 2011-2015
+
+Figure2a<-ggplot(hour5y, aes(x=h0610))+geom_bar(aes(y=(..count..)/sum(..count..)))+ggtitle("Figure 2a.Residential Fires Occur by Alarm(2006-2010)")+theme_economist()+ylab("Percent of Residential Fire")+xlab("Time of Alarm") + scale_y_continuous(labels=percent)+theme(plot.title = element_text(size = 8, face = "bold"))
+
+Figure2b<-ggplot(hour5y2, aes(x=h1115))+geom_bar(aes(y=(..count..)/sum(..count..)))+ggtitle("Figure 2b.Residential Fires Occur by Alarm during(2011-2015)")+theme_economist()+ylab("Percent of Residential Fire")+xlab("Time of Alarm") + scale_y_continuous(labels=percent)+theme(plot.title = element_text(size = 8, face = "bold"))
+
+
+
+Figure2a
+
+
+
+```
+
+```{r}
+Figure2b
+```
+
+```{r} 
+rm(Figure2a, Figure2b, hour5y, hour5y2)
+```
+
+### Month
+The following analysis is based on the hour column generated by my separation in basic incident file for each year.
+As we can see in Figure 3, residential fire incidence was higher in the cooler months, peaking in January for both 5-years time period. The increase in fires in the cooler months may be explained
+by the increase in heating fires. In addition, the increase may also be due to more indoor activities in general, as well as more indoor seasonal and holiday activities. During the spring and summer months, fire incidence declined steadily, as seen in low percentage in August and September for both time periods.
+```{r}
+# remove large files that take up large memory
+rm(Figure1, Figure2, h0610)
+m0610<-c(resi2006$MONTH, resi2007$MONTH, resi2008$MONTH, resi2009$MONTH, resi2010$MONTH)
+m5y<-as.data.frame(m0610)
+m5y$m0610<-month.abb[m5y$m0610]
+rm(m0610)
+
+m1115<-c(resi2011$MONTH, resi2012$MONTH, resi2013$MONTH, resi2014$MONTH, resi2015$MONTH)
+m5y2<-as.data.frame(m1115)
+m5y2$m1115<-month.abb[m5y2$m1115]
+rm(m1115)
+
+Figure3a<-ggplot(m5y, aes(x=m0610))+geom_bar(aes(y=(..count..)/sum(..count..)))+ggtitle("Figure 3a.Residential Fires Occur by Month during 2006 and 2010")+theme_economist()+ylab("Percent of Residential Fire")+xlab("Month of Alarm")+scale_x_discrete(limits=c("Jan","Feb","Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"))+scale_y_continuous(labels=percent)
+
+Figure3b<-ggplot(m5y2, aes(x=m1115))+geom_bar(aes(y=(..count..)/sum(..count..)))+ggtitle("Figure 3b.Residential Fires Occur by Month during 2011 and 2015")+theme_economist()+ylab("Percent of Residential Fire")+xlab("Month of Alarm")+scale_x_discrete(limits=c("Jan","Feb","Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"))+scale_y_continuous(labels=percent)
+
+
+
+grid.arrange(Figure3a, Figure3b)
+
+
+```
+
+```{r}
+rm(m5y,m5y2)
+rm(a1, a2,a3,b1, b2, b3, c1, c2, c3, d1, d2, d3, e1, e2, e3, f0, f1, f2, f3, Firetype, g1, g2, g3, h1, h2, h3, i1, i2, i3, non, num, r06, r07, r08, r09, r10, r11, r12, r13, r14, r15, residential,year,j1, j2, j3)
+rm(plot2, table1)
+
+```
+
+## Section 3: Type of Fire 
+![Confined and Nonconfined Residential Fire](confined and nonconfined fire.PNG)
+I still use the basic incidence file as before and this time, I filter the confined and nonconfined fire on Type of Incident column(INC_TYPE), and based on the condition showed in image above.
+Building fires are divided into two classes of severity in NFIRS:
+1. "Confined fires", which are fires confined to sepecific types of objects and not spread to a broader area, such as cooking fire involving the contents of a cooking vessel without fire extension beyond the vessels.As we can see in further, confined fires cause less serious injury or large loss.
+2. "Nonconfined fires", which are fires unconfined to specific types of objects and spread to a broader area. They are often occurred in mobile room used as a fixed residence, motor room or mobile property used as a fixed structure.
+For the two classes of severity, non-confined fires explains more than 50 percent of residenial fires. Among confined fires, cooking fires is the most dominant type.
+Note: Starting with 2008 NFIRS data, the definition of Incident Type 112 was enforced. Early analyses of Incident Type 112 (fire in structure, other than in a building) indicated that these incidents were often miscoded and were intended to be building fires. As a result, prior to 2008, Incident Type (INC_TYPE) 112 is included as a building fire; from 2008 on, it is excluded.(*NFIRS 5.0 Fire Data Analysis Guidelines and Issues*, 17)
+```{r}
+# subset all residential fires type limit to INC_TYPE == 111 112(pre-2008) 120-123 113-118 
+# Confined and nonconfined residential fire
+# wholeYY means all residential confined and non-confined fires for each year.
+whole06<-filter(resi2006, INC_TYPE %in% c("111", "120", "121", "123", "113", "114", "115", "116", "117", "118","112"))
+whole06$INC_TYPE<-factor(whole06$INC_TYPE)
+
+whole07<-filter(resi2007, INC_TYPE %in% c("111", "120", "121", "123", "113", "114", "115", "116", "117", "118", "112"))
+whole07$INC_TYPE<-factor(whole07$INC_TYPE)
+
+whole08<-filter(resi2008, INC_TYPE %in% c("111", "120", "121", "123", "113", "114", "115", "116", "117", "118"))
+whole08$INC_TYPE<-factor(whole08$INC_TYPE)
+
+whole09<-filter(resi2009, INC_TYPE %in% c("111", "120", "121", "123", "113", "114", "115", "116", "117", "118"))
+whole09$INC_TYPE<-factor(whole09$INC_TYPE)
+
+whole10<-filter(resi2006, INC_TYPE %in% c("111", "120", "121", "123", "113", "114", "115", "116", "117", "118"))
+whole10$INC_TYPE<-factor(whole10$INC_TYPE)
+
+whole11<-filter(resi2011, INC_TYPE %in% c("111", "120", "121", "123", "113", "114", "115", "116", "117", "118"))
+whole11$INC_TYPE<-factor(whole11$INC_TYPE)
+
+
+whole12<-filter(resi2012, INC_TYPE %in% c("111", "120", "121", "123", "113", "114", "115", "116", "117", "118"))
+whole12$INC_TYPE<-factor(whole12$INC_TYPE)
+
+whole13<-filter(resi2013, INC_TYPE %in% c("111", "120", "121", "123", "113", "114", "115", "116", "117", "118"))
+whole13$INC_TYPE<-factor(whole13$INC_TYPE)
+
+whole14<-filter(resi2014, INC_TYPE %in% c("111", "120", "121", "123", "113", "114", "115", "116", "117", "118"))
+whole14$INC_TYPE<-factor(whole14$INC_TYPE)
+
+whole15<-filter(resi2015, INC_TYPE %in% c("111", "120", "121", "123", "113", "114", "115", "116", "117", "118"))
+whole15$INC_TYPE<-factor(whole15$INC_TYPE)
+
+# calculate the rows for all nonconfined residential fires data
+non06<-nrow(filter(resi2006, INC_TYPE %in% c("111", "112", "120", "121", "123")))
+
+
+non07<-nrow(filter(resi2007, INC_TYPE %in% c("111", "112", "120", "121", "123")))
+
+
+non08<-nrow(filter(resi2008, INC_TYPE %in% c("111", "120", "121", "123")))
+
+
+non09<-nrow(filter(resi2009, INC_TYPE %in% c("111", "120", "121", "123")))
+
+
+non10<-nrow(filter(resi2010, INC_TYPE %in% c("111", "120", "121", "123")))
+
+
+non11<-nrow(filter(resi2011, INC_TYPE %in% c("111", "120", "121", "123")))
+non12<-nrow(filter(resi2012, INC_TYPE %in% c("111", "120", "121", "123")))
+
+
+non13<-nrow(filter(resi2013, INC_TYPE %in% c("111", "120", "121", "123")))
+
+
+non14<-nrow(filter(resi2014, INC_TYPE %in% c("111", "120", "121", "123")))
+
+
+non15<-nrow(filter(resi2015, INC_TYPE %in% c("111", "120", "121", "123")))
+
+
+# calculating percent of nonconfined residential fire during 2006-2010
+non0615<-non06+non07+non08+non09+non10+non11+non12+non13+non14+non15
+whole0615<-nrow(whole06)+nrow(whole07)+nrow(whole08)+nrow(whole09)+nrow(whole10)+nrow(whole11)+nrow(whole12)+nrow(whole13)+nrow(whole14)+nrow(whole15)
+# nonper0610 represents during 2006-2010 nonconfined residential fire percent
+nonper0615<-(non0615/whole0615)*100
+rm(non0615)
+
+# calculating confined fire percent
+#1. cooking fire, involving the contents of a cooking vesssel without fire extension beyond the vessel
+cook06<-nrow(filter(resi2006, INC_TYPE %in% c("113")))
+cook07<-nrow(filter(resi2007, INC_TYPE %in% c("113")))
+cook08<-nrow(filter(resi2008, INC_TYPE %in% c("113")))
+cook09<-nrow(filter(resi2009, INC_TYPE %in% c("113")))
+cook10<-nrow(filter(resi2010, INC_TYPE %in% c("113")))
+cook11<-nrow(filter(resi2011, INC_TYPE %in% c("113")))
+cook12<-nrow(filter(resi2012, INC_TYPE %in% c("113")))
+cook13<-nrow(filter(resi2013, INC_TYPE %in% c("113")))
+cook14<-nrow(filter(resi2014, INC_TYPE %in% c("113")))
+cook15<-nrow(filter(resi2015, INC_TYPE %in% c("113")))
+cook0615<-cook06+cook07+cook08+cook09+cook10+cook11+cook12+cook13+cook14+cook15
+cookper0615<-round((cook0615/whole0615)*100,2)
+
+rm(cook06,cook07,cook08,cook09,cook10,cook11,cook12,cook13,cook14,cook15)
+
+# chimney or flue fire, confined
+chimney06<-nrow(filter(resi2006, INC_TYPE %in% c("114")))
+chimney07<-nrow(filter(resi2007, INC_TYPE %in% c("114")))
+chimney08<-nrow(filter(resi2008, INC_TYPE %in% c("114")))
+chimney09<-nrow(filter(resi2009, INC_TYPE %in% c("114")))
+chimney10<-nrow(filter(resi2010, INC_TYPE %in% c("114")))
+chimney11<-nrow(filter(resi2011, INC_TYPE %in% c("114")))
+chimney12<-nrow(filter(resi2012, INC_TYPE %in% c("114")))
+chimney13<-nrow(filter(resi2013, INC_TYPE %in% c("114")))
+chimney14<-nrow(filter(resi2014, INC_TYPE %in% c("114")))
+chimney15<-nrow(filter(resi2015, INC_TYPE %in% c("114")))
+chimney0615<-chimney06+chimney07+chimney08+chimney09+chimney10+chimney11+chimney12+chimney13+chimney14+chimney15
+chimneyper0615<-round((chimney0615/whole0615)*100,2)
+
+
+rm(chimney06,chimney07,chimney08,chimney09,chimney10,chimney11,chimney12,chimney13,chimney14,chimney15)
+
+# Incinerator overload or malfunction, confined
+inci06<-nrow(filter(resi2006, INC_TYPE %in% c("115")))
+inci07<-nrow(filter(resi2007, INC_TYPE %in% c("115")))
+inci08<-nrow(filter(resi2008, INC_TYPE %in% c("115")))
+inci09<-nrow(filter(resi2009, INC_TYPE %in% c("115")))
+inci10<-nrow(filter(resi2010, INC_TYPE %in% c("115")))
+inci11<-nrow(filter(resi2011, INC_TYPE %in% c("115")))
+inci12<-nrow(filter(resi2012, INC_TYPE %in% c("115")))
+inci13<-nrow(filter(resi2013, INC_TYPE %in% c("115")))
+inci14<-nrow(filter(resi2014, INC_TYPE %in% c("115")))
+inci15<-nrow(filter(resi2015, INC_TYPE %in% c("115")))
+inci0615<-inci06+inci07+inci08+inci09+inci10+inci11+inci12+inci13+inci14+inci15
+inciper0615<-round((inci0615/whole0615)*100,2)
+
+# Fuel burner or boiler, confined
+burn06<-nrow(filter(resi2006, INC_TYPE %in% c("116")))
+burn07<-nrow(filter(resi2007, INC_TYPE %in% c("116")))
+burn08<-nrow(filter(resi2008, INC_TYPE %in% c("116")))
+burn09<-nrow(filter(resi2009, INC_TYPE %in% c("116")))
+burn10<-nrow(filter(resi2010, INC_TYPE %in% c("116")))
+burn11<-nrow(filter(resi2011, INC_TYPE %in% c("116")))
+burn12<-nrow(filter(resi2012, INC_TYPE %in% c("116")))
+burn13<-nrow(filter(resi2013, INC_TYPE %in% c("116")))
+burn14<-nrow(filter(resi2014, INC_TYPE %in% c("116")))
+burn15<-nrow(filter(resi2015, INC_TYPE %in% c("116")))
+burn0615<-burn06+burn07+burn08+burn09+burn10+burn11+burn12+burn13+burn14+burn15
+burnper0615<-round((burn0615/whole0615)*100,2)
+
+# Commercial compactor fire
+com06<-nrow(filter(resi2006, INC_TYPE %in% c("117")))
+com07<-nrow(filter(resi2007, INC_TYPE %in% c("117")))
+com08<-nrow(filter(resi2008, INC_TYPE %in% c("117")))
+com09<-nrow(filter(resi2009, INC_TYPE %in% c("117")))
+com10<-nrow(filter(resi2010, INC_TYPE %in% c("117")))
+com11<-nrow(filter(resi2011, INC_TYPE %in% c("117")))
+com12<-nrow(filter(resi2012, INC_TYPE %in% c("117")))
+com13<-nrow(filter(resi2013, INC_TYPE %in% c("117")))
+com14<-nrow(filter(resi2014, INC_TYPE %in% c("117")))
+com15<-nrow(filter(resi2015, INC_TYPE %in% c("117")))
+com0615<-com06+com07+com08+com09+com10+com11+com12+com13+com14+com15
+comper0615<-round((com0615/whole0615)*100,2)
+
+# Trash or rubbish fire
+trash06<-nrow(filter(resi2006, INC_TYPE %in% c("118")))
+trash07<-nrow(filter(resi2007, INC_TYPE %in% c("118")))
+trash08<-nrow(filter(resi2008, INC_TYPE %in% c("118")))
+trash09<-nrow(filter(resi2009, INC_TYPE %in% c("118")))
+trash10<-nrow(filter(resi2010, INC_TYPE %in% c("118")))
+trash11<-nrow(filter(resi2011, INC_TYPE %in% c("118")))
+trash12<-nrow(filter(resi2012, INC_TYPE %in% c("118")))
+trash13<-nrow(filter(resi2013, INC_TYPE %in% c("118")))
+trash14<-nrow(filter(resi2014, INC_TYPE %in% c("118")))
+trash15<-nrow(filter(resi2015, INC_TYPE %in% c("118")))
+trash0615<-trash06+trash07+trash08+trash09+trash10+trash11+trash12+trash13+trash14+trash15
+trashper0615<-round((trash0615/whole0615)*100,2)
+
+#add up percentage for confined fire
+conper0615<-cookper0615+chimneyper0615+inciper0615+burnper0615+comper0615+trashper0615
+
+table2<-data.frame("Incident Type"=c("Nonconfined fire", "Confined Fire :","   Cooking Fire","   Chimney or flue fire", 
+                                     "   Incinerator overload or malfunction", "   Fuel burner or boiler",
+                                     "   Commercial compactor fire", "   Trash or rubbish fire"),
+                   "Percent%"=c(nonper0615, conper0615, cookper0615, chimneyper0615, inciper0615, burnper0615, comper0615, trashper0615))
+
+
+kable(table2, format = "html", digits = 2, booktabs=TRUE, caption = "Table2. Percentage of Confined fires and Non-confiend fires during 2006-2015")
+
+```
+
+```{r}
+# remove unnecessary varibale
+rm(inci06, inci0615, inci07, inci08, inci09, inci10, inci11, inci12, inci13, inci14, inci15, inciper0615, non06, non07, non08, non09, non10, non11, non12, non13, non14, non15, nonper0615)
+```
+
+## Section 4: Total Loss
+I still use the residential fire(genearted in first section) and focus on 4 columns listed below. I add up the column OTH_DEATH and FF_DEATH together as totaldeath below for two categories of residential fire buildings(Confined and Non-confined). Then I plot Firefighter and Civilian Injury for Confined Residential Fire during 2006-2015(Figure4a shows) and plot nonconfined residential fire: firefighter injury and civilian injury during 2006-2015(Figure4b). Since the death number for confined residential fires is so small(mostly 1 person/year), I only focus on comparing the trends between confined and non-confined fires injuries for each year.
+For the total loss part, I calculate it based on three important metrics, including deaths and injuries for civilians and firefighters, and property or contents loss.
+1. **Civilian**
+Totals for civilian deaths or injury can be found in OTH_DEATH and OTH_INJ in basic incident tables.
+2. **Firefighter**
+I counted the firefighter casualty(FF_Death and FF_INJURY) in basic incident. 
+3. **Property and Content Loss(Total Loss)**
+By looking at the basic Module in the guidelines, I found it in basic incident file. I calculate DOLLAR_LOSS column based on adding up PROP_LOSS(property loss) and CONT_LOSS(contents loss) for each row. For confined fire, we expect that the fire did not spread beyond specific containers, thus cause less property loss.
+
+Figure4a illustrates trends of firefighter and civilian injuries for confined residential fire. One important thing to note is y-axis means that number of injuries/10000 fires. So approximately 10 fires confined cause a person injury. This matches common sense since confined fires are always considered as less severe, compared to non-confined fires. 
+Figure4b shows those people’s injuries for non-confined fire. Every year, the injuries of civilian in non-confined fire are approximately 3 times for those of civilian in confined fires. I only compare the injuries for every years because the death for confined fires is so trivial(such as 1 death/year). 
+Table 3 explains that injuries, death and dollar loss, averaged for confined and non-confined residential fire during 2006-2015. In table 3, nonconfined fires cause 1061 times of falities than confined fires do and 9 times of injury than confined fires do. For the comparsion of dollar loss per fire, the property and contents loss, measured by dollar, nonconfined fires are 75 more times than confined fires, which are all notably higher numbers.
+```{r}
+
+# calculating based on per 10000 fires since the file is so large except(dollar loss/fire)
+# Group-by Total Residential Building Fire
+#          Confined Residential Building Fire
+#          Nonconfined Residential BUilding Fire
+#          Nonresidential Building Fire
+# Based on three categories: Deaths/10000fires    Injuries/10000fires   Dollar loss/10000fires
+
+# Confined residential Building Fire: INC_TYPE==113–118 
+# Nonconfined residential Buidling Fires: INC_TYPE==111, 112, 120–123 (pre-2008)/111, 120–123 (from 2008 on)
+# Total Residential Building Fire are combination of confined and nonconfined residential buidling fires, which are addressed before wholeYY(variable name)
+# Nonresidential Building Fire nrow=(total basic incident file rows- rows of resiYYYY)
+
+# Civilian death and firefighter death for Confined Residential Buidling Fire
+cicon06<-filter(whole06, INC_TYPE %in% c("113", "114", "115", "116", "117", "118"))
+numcivildeath06<-sum(cicon06$OTH_DEATH, na.rm=T)
+numfightdeath06<-sum(cicon06$FF_DEATH, na.rm=T)
+totaldeath06<-numcivildeath06+numfightdeath06
+rowcivildeath06<-nrow(cicon06)
+rm(cicon06)
+
+cicon07<-filter(whole07, INC_TYPE %in% c("113", "114", "115", "116", "117", "118"))
+numcivildeath07<-sum(cicon07$OTH_DEATH, na.rm = T)
+numfightdeath07<-sum(cicon07$FF_DEATH, na.rm=T)
+totaldeath07<-numcivildeath07+numfightdeath07
+rowcivildeath07<-nrow(cicon07)
+rm(cicon07)
+
+cicon08<-filter(whole08, INC_TYPE %in% c("113", "114", "115", "116", "117", "118"))
+numcivildeath08<-sum(cicon08$OTH_DEATH, nar.rm=T)
+numfightdeath08<-sum(cicon08$FF_DEATH, na.rm=T)
+totaldeath08<-numcivildeath08+numfightdeath08
+rowcivildeath08<-nrow(cicon08)
+rm(cicon08)
+
+cicon09<-filter(whole09, INC_TYPE %in% c("113", "114", "115", "116", "117", "118"))
+numcivildeath09<-sum(cicon09$OTH_DEATH, na.rm = T)
+numfightdeath09<-sum(cicon09$FF_DEATH, na.rm=T)
+totaldeath09<-numcivildeath09+numfightdeath09
+rowcivildeath09<-nrow(cicon09)
+rm(cicon09)
+
+cicon10<-filter(whole10, INC_TYPE %in% c("113", "114", "115", "116", "117", "118"))
+numcivildeath10<-sum(cicon10$OTH_DEATH, na.rm = T)
+numfightdeath10<-sum(cicon10$FF_DEATH, na.rm=T)
+totaldeath10<-numcivildeath10+numfightdeath07
+rowcivildeath10<-nrow(cicon10)
+rm(cicon10)
+
+cicon11<-filter(whole11, INC_TYPE %in% c("113", "114", "115", "116", "117", "118"))
+numcivildeath11<-sum(cicon11$OTH_DEATH, na.rm = T)
+numfightdeath11<-sum(cicon11$FF_DEATH, na.rm=T)
+totaldeath11<-numcivildeath11+numfightdeath11
+rowcivildeath11<-nrow(cicon11)
+rm(cicon11)
+
+cicon12<-filter(whole12, INC_TYPE %in% c("113", "114", "115", "116", "117", "118"))
+numcivildeath12<-sum(cicon12$OTH_DEATH, na.rm = T)
+numfightdeath12<-sum(cicon12$FF_DEATH, na.rm=T)
+totaldeath12<-numcivildeath12+numfightdeath12
+rowcivildeath12<-nrow(cicon12)
+rm(cicon12)
+
+cicon13<-filter(whole13, INC_TYPE %in% c("113", "114", "115", "116", "117", "118"))
+numcivildeath13<-sum(cicon13$OTH_DEATH, na.rm = T)
+numfightdeath13<-sum(cicon13$FF_DEATH, na.rm=T)
+totaldeath13<-numcivildeath13+numfightdeath13
+rowcivildeath13<-nrow(cicon13)
+rm(cicon13)
+
+cicon14<-filter(whole14, INC_TYPE %in% c("113", "114", "115", "116", "117", "118"))
+numcivildeath14<-sum(cicon14$OTH_DEATH, na.rm = T)
+numfightdeath14<-sum(cicon14$FF_DEATH, na.rm=T)
+totaldeath14<-numcivildeath14+numfightdeath14
+rowcivildeath14<-nrow(cicon14)
+rm(cicon14)
+
+cicon15<-filter(whole15, INC_TYPE %in% c("113", "114", "115", "116", "117", "118"))
+numcivildeath15<-sum(cicon15$OTH_DEATH, na.rm = T)
+numfightdeath15<-sum(cicon15$FF_DEATH, na.rm=T)
+totaldeath15<-numcivildeath15+numfightdeath15
+rowcivildeath15<-nrow(cicon15)
+rm(cicon15)
+
+totaldeathcon<-(totaldeath06+totaldeath07+totaldeath08+totaldeath09+totaldeath10+totaldeath11+totaldeath12+totaldeath13+totaldeath14+totaldeath15)/(rowcivildeath06+rowcivildeath07+rowcivildeath08+rowcivildeath09+rowcivildeath10+rowcivildeath11+rowcivildeath12+rowcivildeath13+rowcivildeath14+rowcivildeath15)*10000
+
+rm(totaldeath06, totaldeath07, totaldeath08, totaldeath09, totaldeath10, totaldeath11, totaldeath12, totaldeath13, totaldeath14, totaldeath15, rowcivildeath06, rowcivildeath07, rowcivildeath08, rowcivildeath09, rowcivildeath10, rowcivildeath11, rowcivildeath12, rowcivildeath13, rowcivildeath14, rowcivildeath15)
+# Civilian Injury and firefighter injury for confined residential fire
+cicon06<-filter(whole06, INC_TYPE %in% c("113", "114", "115", "116", "117", "118"))
+numcivilinj06<-sum(cicon06$OTH_INJ, na.rm=T)
+
+numfightinj06<-sum(cicon06$FF_INJ, na.rm=T)
+totalfightinj06<-numcivilinj06+numfightinj06
+rowtotalinj06<-nrow(cicon06)
+rm(cicon06)
+
+cicon07<-filter(whole07, INC_TYPE %in% c("113", "114", "115", "116", "117", "118"))
+numcivilinj07<-sum(cicon07$OTH_INJ, na.rm=T)
+
+numfightinj07<-sum(cicon07$FF_INJ, na.rm=T)
+totalfightinj07<-numcivilinj07+numfightinj07
+rowtotalinj07<-nrow(cicon07)
+rm(cicon07)
+
+
+cicon08<-filter(whole08, INC_TYPE %in% c("113", "114", "115", "116", "117", "118"))
+numcivilinj08<-sum(cicon08$OTH_INJ, na.rm=T)
+
+numfightinj08<-sum(cicon08$FF_INJ, na.rm=T)
+totalfightinj08<-numcivilinj08+numfightinj08
+rowtotalinj08<-nrow(cicon08)
+rm(cicon08)
+
+
+cicon09<-filter(whole09, INC_TYPE %in% c("113", "114", "115", "116", "117", "118"))
+numcivilinj09<-sum(cicon09$OTH_INJ, na.rm=T)
+
+numfightinj09<-sum(cicon09$FF_INJ, na.rm=T)
+totalfightinj09<-numcivilinj09+numfightinj09
+rowtotalinj09<-nrow(cicon09)
+rm(cicon09)
+
+cicon10<-filter(whole10, INC_TYPE %in% c("113", "114", "115", "116", "117", "118"))
+numcivilinj10<-sum(cicon10$OTH_INJ, na.rm=T)
+
+numfightinj10<-sum(cicon10$FF_INJ, na.rm=T)
+totalfightinj10<-numcivilinj10+numfightinj10
+rowtotalinj10<-nrow(cicon10)
+rm(cicon10)
+
+cicon11<-filter(whole11, INC_TYPE %in% c("113", "114", "115", "116", "117", "118"))
+numcivilinj11<-sum(cicon11$OTH_INJ, na.rm=T)
+
+numfightinj11<-sum(cicon11$FF_INJ, na.rm=T)
+totalfightinj11<-numcivilinj11+numfightinj11
+rowtotalinj11<-nrow(cicon11)
+rm(cicon11)
+
+cicon12<-filter(whole12, INC_TYPE %in% c("113", "114", "115", "116", "117", "118"))
+numcivilinj12<-sum(cicon12$OTH_INJ, na.rm=T)
+
+numfightinj12<-sum(cicon12$FF_INJ, na.rm=T)
+totalfightinj12<-numcivilinj12+numfightinj12
+rowtotalinj12<-nrow(cicon12)
+rm(cicon12)
+
+cicon13<-filter(whole13, INC_TYPE %in% c("113", "114", "115", "116", "117", "118"))
+numcivilinj13<-sum(cicon13$OTH_INJ, na.rm=T)
+
+numfightinj13<-sum(cicon13$FF_INJ, na.rm=T)
+totalfightinj13<-numcivilinj13+numfightinj13
+rowtotalinj13<-nrow(cicon13)
+rm(cicon13)
+
+cicon14<-filter(whole14, INC_TYPE %in% c("113", "114", "115", "116", "117", "118"))
+numcivilinj14<-sum(cicon14$OTH_INJ, na.rm=T)
+
+numfightinj14<-sum(cicon14$FF_INJ, na.rm=T)
+totalfightinj14<-numcivilinj14+numfightinj14
+rowtotalinj14<-nrow(cicon14)
+rm(cicon14)
+
+cicon15<-filter(whole15, INC_TYPE %in% c("113", "114", "115", "116", "117", "118"))
+numcivilinj15<-sum(cicon15$OTH_INJ, na.rm=T)
+
+numfightinj15<-sum(cicon15$FF_INJ, na.rm=T)
+totalfightinj15<-numcivilinj15+numfightinj15
+rowtotalinj15<-nrow(cicon15)
+rm(cicon15)
+
+totalinjcon<-(totalfightinj06+totalfightinj07+totalfightinj08+totalfightinj09+totalfightinj10+totalfightinj11+totalfightinj12+totalfightinj13+totalfightinj14+totalfightinj15)/(rowtotalinj06+rowtotalinj07+rowtotalinj08+rowtotalinj09+rowtotalinj10+rowtotalinj11+rowtotalinj12+rowtotalinj13+rowtotalinj14+rowtotalinj15)*10000
+# plot Firefighter and Civilian Injury for Confined Residential Fire during 2006-2015
+year<-c("2006","2007", "2008", "2009", "2010", "2011", "2012", "2013", "2014", "2015")
+Figure4a<-data.frame("Nonconfinedinj"=c(numfightinj06, numfightinj07, numfightinj08, numfightinj09, numfightinj10, numfightinj11, numfightinj12, numfightinj13, numfightinj14, numfightinj15, numcivilinj06, numcivilinj07, numcivilinj08, numcivilinj09, numcivilinj10, numcivilinj11, numcivilinj12, numcivilinj13, numcivilinj14, numcivilinj15),
+                     "Type"=rep(c("Firefighter", "Civilian"), each=10, times=1),
+                     "Year"=year)
+
+plot4a<-ggplot(Figure4a, aes(x=Year, y=Nonconfinedinj, group=Type)) +
+  geom_line(aes(color=Type))+
+  geom_point(aes(color=Type))+ggtitle("Figure 4a. Firefighter and Civilian Injury for Confined Residential Fire during 2006-2015")+theme_economist()+xlab("YEAR")+ylab("Number of Injury/10000 fires")+ylim(c(0,4000))+theme(text = element_text(size=10))
+
+
+
+rm(totalfightinj06, totalfightinj07, totalfightinj08, totalfightinj09, totalfightinj10, totalfightinj11, totalfightinj12, totalfightinj13, totalfightinj14, totalfightinj15, rowtotalinj06, rowtotalinj07, rowtotalinj08, rowtotalinj09, rowtotalinj10, rowtotalinj11, rowtotalinj12, rowtotalinj13, rowtotalinj14, rowtotalinj15)
+# Dollar loss for confined fire
+cicon06<-filter(whole06, INC_TYPE %in% c("113", "114", "115", "116", "117", "118"))
+numpro06<-sum(cicon06$PROP_LOSS, na.rm=T)
+
+numcon06<-sum(cicon06$CONT_LOSS, na.rm=T)
+totaldollar06<-numpro06+numcon06
+rowdollar06<-nrow(cicon06)
+rm(cicon06)
+
+cicon07<-filter(whole07, INC_TYPE %in% c("113", "114", "115", "116", "117", "118"))
+numpro07<-sum(cicon07$PROP_LOSS, na.rm=T)
+
+numcon07<-sum(cicon07$CONT_LOSS, na.rm=T)
+totaldollar07<-numpro07+numcon07
+rowdollar07<-nrow(cicon07)
+rm(cicon07)
+
+
+cicon08<-filter(whole08, INC_TYPE %in% c("113", "114", "115", "116", "117", "118"))
+numpro08<-sum(cicon08$PROP_LOSS, na.rm=T)
+
+numcon08<-sum(cicon08$CONT_LOSS, na.rm=T)
+totaldollar08<-numpro08+numcon08
+rowdollar08<-nrow(cicon08)
+rm(cicon08)
+
+
+cicon09<-filter(whole09, INC_TYPE %in% c("113", "114", "115", "116", "117", "118"))
+numpro09<-sum(cicon09$PROP_LOSS, na.rm=T)
+
+numcon09<-sum(cicon09$CONT_LOSS, na.rm=T)
+totaldollar09<-numpro09+numcon09
+rowdollar09<-nrow(cicon09)
+rm(cicon09)
+
+cicon10<-filter(whole10, INC_TYPE %in% c("113", "114", "115", "116", "117", "118"))
+numpro10<-sum(cicon10$PROP_LOSS, na.rm=T)
+
+numcon10<-sum(cicon10$CONT_LOSS, na.rm=T)
+totaldollar10<-numpro10+numcon10
+rowdollar10<-nrow(cicon10)
+rm(cicon10)
+
+cicon11<-filter(whole11, INC_TYPE %in% c("113", "114", "115", "116", "117", "118"))
+numpro11<-sum(cicon11$PROP_LOSS, na.rm=T)
+
+numcon11<-sum(cicon11$CONT_LOSS, na.rm=T)
+totaldollar11<-numpro11+numcon11
+rowdollar11<-nrow(cicon11)
+rm(cicon11)
+
+cicon12<-filter(whole12, INC_TYPE %in% c("113", "114", "115", "116", "117", "118"))
+numpro12<-sum(cicon12$PROP_LOSS, na.rm=T)
+
+numcon12<-sum(cicon12$CONT_LOSS, na.rm=T)
+totaldollar12<-numpro12+numcon12
+rowdollar12<-nrow(cicon12)
+rm(cicon12)
+
+cicon13<-filter(whole13, INC_TYPE %in% c("113", "114", "115", "116", "117", "118"))
+numpro13<-sum(cicon13$PROP_LOSS, na.rm=T)
+
+numcon13<-sum(cicon13$CONT_LOSS, na.rm=T)
+totaldollar13<-numpro13+numcon13
+rowdollar13<-nrow(cicon13)
+rm(cicon13)
+
+cicon14<-filter(whole14, INC_TYPE %in% c("113", "114", "115", "116", "117", "118"))
+numpro14<-sum(cicon14$PROP_LOSS, na.rm=T)
+
+numcon14<-sum(cicon14$CONT_LOSS, na.rm=T)
+totaldollar14<-numpro14+numcon14
+rowdollar14<-nrow(cicon14)
+rm(cicon14)
+
+cicon15<-filter(whole15, INC_TYPE %in% c("113", "114", "115", "116", "117", "118"))
+numpro15<-sum(cicon15$PROP_LOSS, na.rm=T)
+
+numcon15<-sum(cicon15$CONT_LOSS, na.rm=T)
+totaldollar15<-numpro15+numcon15
+rowdollar15<-nrow(cicon15)
+rm(cicon15)
+
+totaldollarcon<-(totaldollar06+totaldollar07+totaldollar08+totaldollar09+totaldollar10+totaldollar11+totaldollar12+totaldollar13+totaldollar14+totaldollar15)/(rowdollar06+rowdollar07+rowdollar08+rowdollar09+rowdollar10+rowdollar11+rowdollar12+rowdollar13+rowdollar14+rowdollar15)
+
+# Civilian and firefighter death for nonconfined residential fire
+# Nonconfined residential Buidling Fires: INC_TYPE==111, 112, 120–123 (pre-2008)/111, 120–123 (from 2008 on)
+cicon06<-filter(whole06, INC_TYPE %in% c("111", "112", "120", "121", "122", "123"))
+numcivildeath06<-sum(cicon06$OTH_DEATH, na.rm=T)
+numfightdeath06<-sum(cicon06$FF_DEATH, na.rm=T)
+totaldeath06<-numcivildeath06+numfightdeath06
+rowcivildeath06<-nrow(cicon06)
+rm(cicon06)
+
+cicon07<-filter(whole07, INC_TYPE %in% c("111", "112", "120", "121", "122", "123"))
+numcivildeath07<-sum(cicon07$OTH_DEATH, na.rm = T)
+numfightdeath07<-sum(cicon07$FF_DEATH, na.rm=T)
+totaldeath07<-numcivildeath07+numfightdeath07
+rowcivildeath07<-nrow(cicon07)
+rm(cicon07)
+
+cicon08<-filter(whole08, INC_TYPE %in% c("111", "120", "121", "122", "123"))
+numcivildeath08<-sum(cicon08$OTH_DEATH, nar.rm=T)
+numfightdeath08<-sum(cicon08$FF_DEATH, na.rm=T)
+totaldeath08<-numcivildeath08+numfightdeath08
+rowcivildeath08<-nrow(cicon08)
+rm(cicon08)
+
+cicon09<-filter(whole09, INC_TYPE %in% c("111", "120", "121", "122", "123"))
+numcivildeath09<-sum(cicon09$OTH_DEATH, na.rm = T)
+numfightdeath09<-sum(cicon09$FF_DEATH, na.rm=T)
+totaldeath09<-numcivildeath09+numfightdeath09
+rowcivildeath09<-nrow(cicon09)
+rm(cicon09)
+
+cicon10<-filter(whole10, INC_TYPE %in% c("111", "120", "121", "122", "123"))
+numcivildeath10<-sum(cicon10$OTH_DEATH, na.rm = T)
+numfightdeath10<-sum(cicon10$FF_DEATH, na.rm=T)
+totaldeath10<-numcivildeath10+numfightdeath07
+rowcivildeath10<-nrow(cicon10)
+rm(cicon10)
+
+cicon11<-filter(whole11, INC_TYPE %in% c("111", "120", "121", "122", "123"))
+numcivildeath11<-sum(cicon11$OTH_DEATH, na.rm = T)
+numfightdeath11<-sum(cicon11$FF_DEATH, na.rm=T)
+totaldeath11<-numcivildeath11+numfightdeath11
+rowcivildeath11<-nrow(cicon11)
+rm(cicon11)
+
+cicon12<-filter(whole12, INC_TYPE %in% c("111", "120", "121", "122", "123"))
+numcivildeath12<-sum(cicon12$OTH_DEATH, na.rm = T)
+numfightdeath12<-sum(cicon12$FF_DEATH, na.rm=T)
+totaldeath12<-numcivildeath12+numfightdeath12
+rowcivildeath12<-nrow(cicon12)
+rm(cicon12)
+
+cicon13<-filter(whole13, INC_TYPE %in% c("111", "120", "121", "122", "123"))
+numcivildeath13<-sum(cicon13$OTH_DEATH, na.rm = T)
+numfightdeath13<-sum(cicon13$FF_DEATH, na.rm=T)
+totaldeath13<-numcivildeath13+numfightdeath13
+rowcivildeath13<-nrow(cicon13)
+rm(cicon13)
+
+cicon14<-filter(whole14, INC_TYPE %in% c("111", "120", "121", "122", "123"))
+numcivildeath14<-sum(cicon14$OTH_DEATH, na.rm = T)
+numfightdeath14<-sum(cicon14$FF_DEATH, na.rm=T)
+totaldeath14<-numcivildeath14+numfightdeath14
+rowcivildeath14<-nrow(cicon14)
+rm(cicon14)
+
+cicon15<-filter(whole15, INC_TYPE %in% c("111", "120", "121", "122", "123"))
+numcivildeath15<-sum(cicon15$OTH_DEATH, na.rm = T)
+numfightdeath15<-sum(cicon15$FF_DEATH, na.rm=T)
+totaldeath15<-numcivildeath15+numfightdeath15
+rowcivildeath15<-nrow(cicon15)
+rm(cicon15)
+
+totaldeathnon<-(totaldeath06+totaldeath07+totaldeath08+totaldeath09+totaldeath10+totaldeath11+totaldeath12+totaldeath13+totaldeath14+totaldeath15)/(rowcivildeath06+rowcivildeath07+rowcivildeath08+rowcivildeath09+rowcivildeath10+rowcivildeath11+rowcivildeath12+rowcivildeath13+rowcivildeath14+rowcivildeath15)*10000
+
+rm(totaldeath06, totaldeath07, totaldeath08, totaldeath09, totaldeath10, totaldeath11, totaldeath12, totaldeath13, totaldeath14, totaldeath15, rowcivildeath06, rowcivildeath07, rowcivildeath08, rowcivildeath09, rowcivildeath10, rowcivildeath11, rowcivildeath12, rowcivildeath13, rowcivildeath14, rowcivildeath15)
+# Civilian Injury and firefighter injury for nonconfined residential fire
+cicon06<-filter(whole06, INC_TYPE %in% c("111", "112", "120", "121", "122", "123"))
+numcivilinj06<-sum(cicon06$OTH_INJ, na.rm=T)
+
+numfightinj06<-sum(cicon06$FF_INJ, na.rm=T)
+totalfightinj06<-numcivilinj06+numfightinj06
+rowtotalinj06<-nrow(cicon06)
+rm(cicon06)
+
+cicon07<-filter(whole07, INC_TYPE %in% c("111", "112", "120", "121", "122", "123"))
+numcivilinj07<-sum(cicon07$OTH_INJ, na.rm=T)
+
+numfightinj07<-sum(cicon07$FF_INJ, na.rm=T)
+totalfightinj07<-numcivilinj07+numfightinj07
+rowtotalinj07<-nrow(cicon07)
+rm(cicon07)
+
+
+cicon08<-filter(whole08, INC_TYPE %in% c("111", "120", "121", "122", "123"))
+numcivilinj08<-sum(cicon08$OTH_INJ, na.rm=T)
+
+numfightinj08<-sum(cicon08$FF_INJ, na.rm=T)
+totalfightinj08<-numcivilinj08+numfightinj08
+rowtotalinj08<-nrow(cicon08)
+rm(cicon08)
+
+
+cicon09<-filter(whole09, INC_TYPE %in% c("111", "120", "121", "122", "123"))
+numcivilinj09<-sum(cicon09$OTH_INJ, na.rm=T)
+
+numfightinj09<-sum(cicon09$FF_INJ, na.rm=T)
+totalfightinj09<-numcivilinj09+numfightinj09
+rowtotalinj09<-nrow(cicon09)
+rm(cicon09)
+
+cicon10<-filter(whole10, INC_TYPE %in% c("111", "120", "121", "122", "123"))
+numcivilinj10<-sum(cicon10$OTH_INJ, na.rm=T)
+
+numfightinj10<-sum(cicon10$FF_INJ, na.rm=T)
+totalfightinj10<-numcivilinj10+numfightinj10
+rowtotalinj10<-nrow(cicon10)
+rm(cicon10)
+
+cicon11<-filter(whole11, INC_TYPE %in% c("111", "120", "121", "122", "123"))
+numcivilinj11<-sum(cicon11$OTH_INJ, na.rm=T)
+
+numfightinj11<-sum(cicon11$FF_INJ, na.rm=T)
+totalfightinj11<-numcivilinj11+numfightinj11
+rowtotalinj11<-nrow(cicon11)
+rm(cicon11)
+
+cicon12<-filter(whole12, INC_TYPE %in% c("111", "120", "121", "122", "123"))
+numcivilinj12<-sum(cicon12$OTH_INJ, na.rm=T)
+
+numfightinj12<-sum(cicon12$FF_INJ, na.rm=T)
+totalfightinj12<-numcivilinj12+numfightinj12
+rowtotalinj12<-nrow(cicon12)
+rm(cicon12)
+
+cicon13<-filter(whole13, INC_TYPE %in% c("111", "120", "121", "122", "123"))
+numcivilinj13<-sum(cicon13$OTH_INJ, na.rm=T)
+
+numfightinj13<-sum(cicon13$FF_INJ, na.rm=T)
+totalfightinj13<-numcivilinj13+numfightinj13
+rowtotalinj13<-nrow(cicon13)
+rm(cicon13)
+
+cicon14<-filter(whole14, INC_TYPE %in% c("111", "120", "121", "122", "123"))
+numcivilinj14<-sum(cicon14$OTH_INJ, na.rm=T)
+
+numfightinj14<-sum(cicon14$FF_INJ, na.rm=T)
+totalfightinj14<-numcivilinj14+numfightinj14
+rowtotalinj14<-nrow(cicon14)
+rm(cicon14)
+
+cicon15<-filter(whole15, INC_TYPE %in% c("111", "120", "121", "122", "123"))
+numcivilinj15<-sum(cicon15$OTH_INJ, na.rm=T)
+
+numfightinj15<-sum(cicon15$FF_INJ, na.rm=T)
+totalfightinj15<-numcivilinj15+numfightinj15
+rowtotalinj15<-nrow(cicon15)
+rm(cicon15)
+
+totalinjnon<-(totalfightinj06+totalfightinj07+totalfightinj08+totalfightinj09+totalfightinj10+totalfightinj11+totalfightinj12+totalfightinj13+totalfightinj14+totalfightinj15)/(rowtotalinj06+rowtotalinj07+rowtotalinj08+rowtotalinj09+rowtotalinj10+rowtotalinj11+rowtotalinj12+rowtotalinj13+rowtotalinj14+rowtotalinj15)*10000
+
+
+
+
+#plot nonconfined residential fire: firefighter injury and civilian injury during 2006-2015
+year<-c("2006","2007", "2008", "2009", "2010", "2011", "2012", "2013", "2014", "2015")
+Figure4b<-data.frame("Nonconfinedinj"=c(numfightinj06, numfightinj07, numfightinj08, numfightinj09, numfightinj10, numfightinj11, numfightinj12, numfightinj13, numfightinj14, numfightinj15, numcivilinj06, numcivilinj07, numcivilinj08, numcivilinj09, numcivilinj10, numcivilinj11, numcivilinj12, numcivilinj13, numcivilinj14, numcivilinj15),
+                     "Type"=rep(c("Firefighter", "Civilian"), each=10, times=1),
+                     "Year"=year)
+
+plot4b<-ggplot(Figure4b, aes(x=Year, y=Nonconfinedinj, group=Type)) +
+  geom_line(aes(color=Type))+
+  geom_point(aes(color=Type))+ggtitle("Figure 4b. Firefighter and Civilian Injury for Nonconfined Residential Fire during 2006-2015")+theme_economist()+xlab("YEAR")+ylab("Number of Injury/10000 fires")+ylim(c(0,8000))+theme(text = element_text(size=10))
+
+
+
+# remove unnecesary integers that take up memory
+rm(trash06, trash07, trash08, trash09, trash10, trash11, trash12, trash13, trash14, trash15, whole0615, cook0615, conper0615, comper0615, com06, com0615, com07, com08, com09, com10, com11, com12, com13, com14, com15, civiliandeath, civilianinj, chimneyper0615, chimneyk13, chimney0615,burnper0615, burn06, burn07, burn08, burn09, burn10, burn11, burn12, burn13, burn14, burn15, Figure5a, Figure5b, ciconinj06)
+rm(burn0615, cookper0615, dollar, numcivildeath06, numcivildeath07, numcivildeath08, numcivildeath09, numcivildeath10, numcivildeath11, numcivildeath12, numcivildeath13, numcivildeath14, numcivildeath15, numcivilinj, numcivilinj06, numcivilinj07, numcivilinj08, numcivilinj09, numcivilinj10, numcivilinj11, numcivilinj12, numcivilinj13, numcivilinj14, numcivilinj15, numcon06, numcon07, numcon08, numcon09, numcon10, numcon11, numcon12, numcon13, numcon14, numcon15, numfightdeath06, numfightdeath07, numfightdeath08, numfightdeath09, numfightdeath10, numfightdeath11, numfightdeath12, numfightdeath13, numfightdeath14, numfightdeath15, numfightinj06, numfightinj07, numfightinj08, numfightinj09, numfightinj10, numfightinj11, numfightinj12, numfightinj13, numfightinj14, numfightinj15, rowcivilinj06, rowcivilinj07, rownciviinj08, rowcivilinj09, rowcivilinj10, rowcivilinj11, rowcivilinj12, rowcivilinj13, rowcivilinj14, rowcivilinj15)
+
+
+# Dollar loss for nonconfined fire
+# Since the file is so large that causes integer overflow, I sample 50000 rows from each column
+# nrow of the sample are all 10000
+set.seed(17)
+cicon06<-filter(resi2006, INC_TYPE %in% c("111", "112", "120", "121", "122", "123"))
+sample06<-sample_n(cicon06, 50000)
+numpro06<-sum(sample06$PROP_LOSS, na.rm = T)/nrow(sample06)
+
+numcon06<-sum(sample06$CONT_LOSS, na.rm=T)/nrow(sample06)
+totaldollar06<-numpro06+numcon06
+rm(cicon06)
+
+cicon07<-filter(resi2007, INC_TYPE %in% c("111", "112", "120", "121", "122", "123"))
+sample07<-sample_n(cicon07, 50000)
+numpro07<-sum(sample07$PROP_LOSS, na.rm = T)/nrow(sample07)
+
+numcon07<-sum(sample07$CONT_LOSS, na.rm=T)/nrow(sample06)
+totaldollar07<-numpro07+numcon07
+rm(cicon07)
+
+
+cicon08<-filter(resi2008, INC_TYPE %in% c("111", "120", "121", "122", "123"))
+sample08<-sample_n(cicon08, 50000)
+numpro08<-sum(sample08$PROP_LOSS, na.rm = T)/nrow(sample08)
+
+numcon08<-sum(sample08$CONT_LOSS, na.rm=T)/nrow(sample06)
+totaldollar08<-numpro08+numcon08
+rm(cicon08)
+
+
+cicon09<-filter(resi2009, INC_TYPE %in% c("111", "120", "121", "122", "123"))
+sample09<-sample_n(cicon09, 50000)
+numpro09<-sum(sample09$PROP_LOSS, na.rm = T)/nrow(sample06)
+
+numcon09<-sum(sample09$CONT_LOSS, na.rm=T)/nrow(sample06)
+totaldollar09<-numpro09+numcon09
+rm(cicon09)
+
+cicon10<-filter(resi2010, INC_TYPE %in% c("111", "120", "121", "122", "123"))
+sample10<-sample_n(cicon10, 50000)
+numpro10<-sum(sample10$PROP_LOSS, na.rm = T)/nrow(sample06)
+
+numcon10<-sum(sample10$CONT_LOSS, na.rm=T)/nrow(sample06)
+totaldollar10<-numpro10+numcon10
+
+rm(cicon10)
+
+cicon11<-filter(resi2011, INC_TYPE %in% c("111", "120", "121", "122", "123"))
+sample11<-sample_n(cicon11, 50000)
+numpro11<-sum(sample11$PROP_LOSS, na.rm = T)/nrow(sample11)
+
+numcon11<-sum(sample11$CONT_LOSS, na.rm=T)/nrow(sample06)
+totaldollar11<-numpro11+numcon11
+rm(cicon11)
+
+cicon12<-filter(resi2012, INC_TYPE %in% c("111", "120", "121", "122", "123"))
+sample12<-sample_n(cicon12, 50000)
+numpro12<-sum(sample12$PROP_LOSS, na.rm = T)/nrow(sample06)
+
+numcon12<-sum(sample12$CONT_LOSS, na.rm=T)/nrow(sample06)
+totaldollar12<-numpro12+numcon12
+rm(cicon12)
+
+cicon13<-filter(resi2013, INC_TYPE %in% c("111", "120", "121", "122", "123"))
+sample13<-sample_n(cicon13, 50000)
+numpro13<-sum(sample13$PROP_LOSS, na.rm = T)/nrow(sample06)
+
+numcon13<-sum(sample13$CONT_LOSS, na.rm=T)/nrow(sample06)
+totaldollar13<-numpro13+numcon13
+rm(cicon13)
+
+cicon14<-filter(resi2014, INC_TYPE %in% c("111", "120", "121", "122", "123"))
+sample14<-sample_n(cicon14, 50000)
+numpro14<-sum(sample14$PROP_LOSS, na.rm = T)/nrow(sample06)
+
+numcon14<-sum(sample14$CONT_LOSS, na.rm=T)/nrow(sample06)
+totaldollar14<-numpro14+numcon14
+rm(cicon14)
+
+cicon15<-filter(resi2015, INC_TYPE %in% c("111", "120", "121", "122", "123"))
+sample15<-sample_n(cicon15, 50000)
+numpro15<-sum(sample15$PROP_LOSS, na.rm = T)/nrow(sample06)
+
+numcon15<-sum(sample15$CONT_LOSS, na.rm=T)/nrow(sample06)
+totaldollar15<-numpro15+numcon15
+rm(cicon15)
+
+# 10 years every year I split to two parts: Property loss/Contents loss
+totaldollarnon<-(totaldollar06+totaldollar07+totaldollar08+totaldollar09+totaldollar10+totaldollar11+totaldollar12+totaldollar13+totaldollar14+totaldollar15)/20
+
+
+table3<-data.frame("Confined Residential Fire"=c(totaldeathcon, totalinjcon, totaldollarcon),
+                   "Nonconfined Residential Fire"=c(totaldeathnon, totalinjnon, totaldollarnon))
+rownames(table3)<-c("Fatalities/10000fires", "Injuries/10000fires", "Dollar Loss/fire")
+
+
+kable(table3, format="html", digits=2, caption = "Table 3. Total Loss for Residential Fires during 2006-2015(Ten-Year Average)")
+
+```
+
+```{r}
+grid.arrange(plot4a, plot4b)
+```
+
+```{r}
+rm(whole06, whole07, whole08, whole09, whole10, whole11, whole12, whole13, whole14, whole15)
+```
+
+## Section 5: The Relationship between Property of Use and Type of Fire, Group by Dollar loss
+To investigate the relationship, I take a sample from 4 years(2006/2009/2012/2015), each in a three year time period. The sample size for each year is 40000. After I combine all the 4 samples and filter all codes represents confined or non-confiend residential fires, I left with 73946 data points. Then I replace code for porperty of use and type of incident.
+
+Figure6 represents the relationship between the property use(less than 2 family, multifamily, other residential) and total dollar loss, faceted by Type of Incident based on my four years sample with 85015 rows. Interestingly, more fires occur in residence which holds less than 2 families, and the least fires occur in other-residence type. One explanation for the higher percentages of fires occurenece and total dollar losses for less than two family residence is that multifamily and other residence are more likely to be under regularly fire detection or inspection and professionaly maintained. Also, the dollar loss by confined chimney type of fire is notably higher than other two types of property use. This is reasonable since usually less than two family is more likely to use heating fires in winter and cook daily. Other residence mostly consists of college dormitory, greek-life houses and hotels, where residents don't cook much time or use heating fires.
+
+Figure6b indicates the relationship between hours of fire occurrence and dollar loss grouped by property of use for 4 different years. The peak for dollar loss is 6pm of less than two family, which can be explained by more cooking activities and other two types of property of use don't cook that much, especially for other-residence. We can see the dollar loss for multifamily at 6pm is notably higher too, compared with other time periods of itself. Generally speaking, the dollar loss of other residence is the least among three types of property use. One explanation is that other residence performs less cooking and always under fire inspection. Most of the time, the smoking alarms are present and function well.
+
+Note:  “Less than two family” include detached dwellings, manufactured homes, mobile homes not in transit, and duplexes. “Multifamily” include apartments, town houses, row houses, condominiums,
+and other tenement properties. “Other residential buildings” include boarding/rooming houses, hotels/motels, residential board and care facilities, dormitory-type residences, sorority/fraternity houses, and barracks
+```{r}
+# Since the data is so large, let's sample it
+# Also I only take 4 years this time since 4 years points are enough
+# 2006 2009 2012 2015
+set.seed(17)
+sample06<-sample_n(resi2006, 60000)
+sample09<-sample_n(resi2009, 60000)
+sample12<-sample_n(resi2012, 60000)
+sample15<-sample_n(resi2015, 60000)
+samplewhole<-rbind(sample06, sample09)
+samplewhole2<-rbind(sample12, sample15)
+# since before 2011 column 11, 12 and 13 are all numeric but after 2011 are all integers I convert the class type
+samplewhole2$ARRIVAL<-as.integer(samplewhole2$ARRIVAL)
+samplewhole2$INC_CONT<-as.integer(samplewhole2$INC_CONT)
+samplewhole2$LU_CLEAR<-as.integer(samplewhole2$LU_CLEAR)
+samplewhole<-rbind(samplewhole, samplewhole2)
+rm(samplewhole2, sample06, sample09, sample12, sample15)
+samplewhole$INC_TYPE<-factor(samplewhole$INC_TYPE)
+levels(samplewhole$INC_TYPE)
+# [1] "100" "110" "111" "112" "113" "114" "115" "116" "117" "118" "120" "121" "122" "123" "130" "131"
+#[17] "132" "133" "134" "135" "136" "137" "138" "140" "141" "142" "143" "150" "151" "152" "153" "154"
+#[33] "155" "160" "161" "162" "163" "164" "170" "171" "172" "173" "400" "410" "411" "412" "413" "420"
+#[49] "421" "422" "423" "424" "430" "431" "440" "441" "442" "443" "444" "445" "451" "460" "461" "462"
+#[65] "463" "471" "480" "481" "482" "561" "631" "632"
+# first filter all residential fires since
+samplewhole<-filter(samplewhole, INC_TYPE %in% c("111", "120", "121", "123", "113", "114", "115", "116", "117", "118"))
+samplewhole$INC_TYPE<-factor(samplewhole$INC_TYPE)
+# replace multiple patterns in one function
+mgsub <- function(pattern, replacement, x, ...) {
+  if (length(pattern)!=length(replacement)) {
+    stop("pattern and replacement do not have the same length.")
+  }
+  result <- x
+  for (i in 1:length(pattern)) {
+    result <- gsub(pattern[i], replacement[i], result, ...)
+  }
+  result
+}
+# Decode for residential fire by porperty of use: One/Two Familiy, Multifamily, Other residential
+samplewhole$PROP_USE<-gsub("419","<=2family",samplewhole$PROP_USE, ignore.case = T)
+samplewhole$PROP_USE<-gsub("429", "Multifamily", samplewhole$PROP_USE, ignore.case = T)
+
+samplewhole$PROP_USE<-mgsub(c("439", "400", "449", "459", "460", "462", "464"), rep("Otherresidential",7),samplewhole$PROP_USE, ignore.case = T)
+
+samplewhole$PROP_USE<-as.factor(samplewhole$PROP_USE)
+levels(samplewhole$PROP_USE)
+# decode for residential fire by type of Incident
+
+samplewhole$INC_TYPE<-gsub("111","Nonconfined fire",samplewhole$INC_TYPE, ignore.case = T)
+samplewhole$INC_TYPE<-mgsub(c("120", "121", "122", "123"),rep("Nonconfined fire", 4),samplewhole$INC_TYPE, ignore.case = T)
+samplewhole$INC_TYPE<-gsub(c("113"), "Cooking fire",samplewhole$INC_TYPE, ignore.case = T)
+samplewhole$INC_TYPE<-gsub(c("114"), "Chimney",samplewhole$INC_TYPE, ignore.case = T) 
+samplewhole$INC_TYPE<-gsub(c("115"), "Incinerator",samplewhole$INC_TYPE, ignore.case = T)
+samplewhole$INC_TYPE<-gsub(c("116"), "Fuel burner",samplewhole$INC_TYPE, ignore.case = T)
+samplewhole$INC_TYPE<-gsub(c("117"), "Comercial compactor",samplewhole$INC_TYPE, ignore.case = T)
+samplewhole$INC_TYPE<-gsub(c("118"), "Trash",samplewhole$INC_TYPE, ignore.case = T)
+samplewhole$INC_TYPE<-as.factor(samplewhole$INC_TYPE)
+levels(samplewhole$INC_TYPE)
+
+samplewhole$PROP_LOSS<-as.numeric(samplewhole$PROP_LOSS)
+samplewhole$CONT_LOSS<-as.numeric(samplewhole$CONT_LOSS)
+samplewhole$DOLLAR_LOSS<-samplewhole$PROP_LOSS+samplewhole$CONT_LOSS
+samplewhole$DOLLAR_LOSS[is.na(samplewhole$DOLLAR_LOSS)]<-0
+
+
+samplewhole$DOLLAR_LOSS<-as.numeric(samplewhole$DOLLAR_LOSS)
+
+Figure6<-ggplot(samplewhole, aes(PROP_USE, DOLLAR_LOSS))+geom_point()+facet_wrap(~INC_TYPE, scales = "free")+scale_y_continuous(labels = comma)+xlab("Property Use")+ylab("Total loss/dollar")+ggtitle("Figure6. Property Use and Dollar Loss faceted by Type of Incident(2006/2009/2012/2015)")+theme_economist()
+# use ggplotly
+Figure6a<-ggplotly(Figure6)
+
+Figure6a
+```
+
+```{r}
+#bar plot
+
+p <- plot_ly(data = samplewhole, x = ~HOUR, y = ~DOLLAR_LOSS, color = ~PROP_USE)%>%layout(title = "Figure6b. Hours and Dollar Loss grouped by Porperty of Use for 2006/2009/2012/2015", xaxis = list(title = "Time of Alarm/hour"), yaxis=list(title="Dollar loss/million"))
+
+p
+```
+
+```{r}
+# remove unnecessary variables
+rm(numcon06, numcon07, numcon08, numcon09, numcon10, numcon11, numcon12, numcon13, numcon14, numcon15, numpro06, numpro07, numpro08, numpro09, numpro10, numpro11, numpro12, numpro13, numpro14, numpro15, Figure3a, Figure3b, Figure6,Figure6a, rowdollar06, rowdollar07, rowdollar08, rowdollar09, rowdollar10, rowdollar11, rowdollar12, rowdollar13, rowdollar15, rowtotalinj06, rowtotalinj07, rowtotalinj08, rowtotalinj09, rowtotoalinj10, rowtotalinj11, rowtotoalinj12, rowtotalinj13, rowtotalinj14, rowtotalinj15)
+```
+
+## Section 6: The relationship between Fatality and Injuries grouped by Dollar Loss for Residential Fires(2015)
+I still use the sample data from Section5, written as *samplewhole*, 4 years sample with 73946 rows after I cleaned up. Then, I calculate the dollar loss by combining property loss and contents loss, the amount of death and injury by considering firefighters and civilian. 
+As Figure7 shows, fatalities and injuries are tend to center at 0, which is reasonable since the max value of fatalities in this sample is 4 and the max of injuries are 19. As listed above, even for nonconfined fires, which always causes large fatalities among residential fires, fatalities/10000 fires are 95.52/10000 fires. Although the largest dollar loss fire is caused by less than two family residence, multifamily causes more dollar loss as a whole. Generally speaking, less than two family residence always cause less dollar loss, aggregated at lowers z level, but could have outliers. The dollar loss of Multifamily residence is always similar and centered in middle level of z.
+```{r}
+# form three new columns injuries death and dollar loss 
+samplewhole$INJ<-samplewhole$FF_INJ+samplewhole$OTH_INJ
+samplewhole$DEATH<-samplewhole$FF_DEATH+samplewhole$OTH_DEATH
+samplewhole$DOLLAR_LOSS<-samplewhole$PROP_LOSS+samplewhole$CONT_LOSS
+# since there are a lot of NA for dollar loss convert NA to 0
+samplewhole$INJ[is.na(samplewhole$INJ)] <- 0
+samplewhole$DEATH[is.na(samplewhole$DEATH)] <- 0
+samplewhole$DOLLAR_LOSS[is.na(samplewhole$DOLLAR_LOSS)] <- 0
+colors <- c('#4AC6B7', '#1972A4', '#965F8A')
+
+# plot it
+# x: death y:injuries z: dollar loss
+Figure7<-plot_ly(samplewhole, x = ~DEATH, y = ~INJ, z = ~DOLLAR_LOSS, color = ~PROP_USE, size = ~DOLLAR_LOSS, colors = colors, 
+             marker = list(symbol = 'circle', sizemode = 'diameter'), sizes = c(5, 150),
+             text = ~paste('Fatalities:', DEATH, '<br>Injuries:', INJ, '<br>Dollar Loss:', DOLLAR_LOSS,
+                           '<br>Property of Use.:', PROP_USE)) %>%
+  layout(title = 'Figure7. Injuries vs. Fatalities, 2006/2009/2012/2015',
+         scene = list(xaxis = list(title = 'Injuries/person',
+                      gridcolor = 'rgb(255, 255, 255)',
+                      zerolinewidth = 1,
+                      ticklen = 5,
+                      gridwidth = 2),
+               yaxis = list(title = 'Fatalities/person',
+                      gridcolor = 'rgb(255, 255, 255)',
+                      zerolinewidth = 1,
+                      ticklen = 5,
+                      gridwith = 2),
+               zaxis = list(title = 'Dollar Loss/million',
+                            gridcolor = 'rgb(255, 255, 255)',
+                            zerolinewidth = 1,
+                            ticklen = 5,
+                            gridwith = 2)),
+         paper_bgcolor = 'rgb(243, 243, 243)',
+         plot_bgcolor = 'rgb(243, 243, 243)')
+Figure7
+```
+
+```{r}
+rm(Figure7)
+```
+
+## Section 7: Alerting Systems(Smoke of Alarms)
+This time, I sampled 50000 rows from, each from two years 2006 and 2015. 
+I divided this section into two parts, confined residential fires and non-confined residential fires. 
+1. Confined Fires: DET_ALERT column in basicincident table.
+![Confined and Non-confined fires](confined and nonconfined fire.PNG)
+First, I replace certain codes in column DET_ALERT for whole samples. 
+1 Detector alerted occupants. 2 Detector did not alert occupants. U Unknown.
+Then I filter the confined and non-confined fires(sample06 and sample15) and look at only confined fires in the sample(consample06 and consample15). I finally calculate the percentage of whether smoke alarms alerted people for 2006 and 2015.
+From the table 4 and the hypothesis testing result of whether proportion of smoke alarms alerted people for confined residential fires, we can conclude that the proportion of smoke alarms alerted people of 2006 is less than that of 2015. After 10 years generally, we can see the increasing usefulness of smoke alarms. 
+2. Non-confined fires 
+First, I use the fire incident table for 4 years, 2006/2009/2012/2015 and sample 40000 rows for each year. For nonconfind fires, we have to rely on detector presence (DETECTOR), detector operation (DET_OPERAT). I decode these two columns, calculate the percentage of each category and make Table5a and Table5b. From Table5a and Table5b, we can see that only 11 percent of the whole 4-year sample fire incident is undoubted equiped with smoke alarms, which is a very small number. Only 6 percent of the whole dataset is undoubtedly detector-operated. However, the probability of detector operation is 6 times that of failure of detector operation. To sum up, we need to put more emphasis on smoke alarms equipment and regularly inspect the operation of smoke alarms.  
+```{r}
+
+# Confined fires
+# only look at basic incident DET_ALERT
+# I compare 2006 and 2015
+set.seed(17)
+sample06<-sample_n(resi2006, 50000)
+sample15<-sample_n(resi2015, 50000)
+# below replace DET_ALERT column code for two year samples
+# replace 2006
+sample06$DET_ALERT<-gsub("1", "Alert", sample06$DET_ALERT)
+sample06$DET_ALERT<-gsub("2", "Not Alert", sample06$DET_ALERT)
+sample06$DET_ALERT<-gsub("U", "Unknown", sample06$DET_ALERT)
+sample06$DET_ALERT[is.na(sample06$DET_ALERT)] <- "Unknown"
+nrow(filter(sample06, DET_ALERT=="Alert"))
+# replace 2015
+sample15$DET_ALERT<-gsub("1", "Alert", sample15$DET_ALERT)
+sample15$DET_ALERT<-gsub("2", "Not Alert", sample15$DET_ALERT)
+sample15$DET_ALERT<-gsub("U", "Unknown", sample15$DET_ALERT)
+sample15[sample15$DET_ALERT == "" ] <- NA
+sample15$DET_ALERT[is.na(sample15$DET_ALERT)] <- "Unknown"
+# only filter and keep confined and non-confiend fires
+sample06<-filter(sample06, INC_TYPE %in% c("111", "112", "120", "121", "123", "113", "114", "115", "116", "117", "118", "120", "121", "122", "123"))
+sample15<-filter(sample15, INC_TYPE %in% c("111", "120", "121", "123", "113", "114", "115", "116", "117", "118", "120", "121", "122", "123"))
+# first look at confined residential fires
+consample06<-filter(sample06, INC_TYPE %in% c("113", "114", "115", "116", "117", "118"))
+consample15<-filter(sample15, INC_TYPE %in% c("113", "114", "115", "116", "117", "118"))
+
+
+
+
+# make a table
+table4<-data.frame("Count(2006)"=c(nrow(filter(consample06, DET_ALERT=="Alert")), nrow(filter(consample06, DET_ALERT=="Not Alert")), nrow(filter(consample06, DET_ALERT=="Unknown")), nrow(consample06))
+                   ,"Percent(2006)"=c(nrow(filter(consample06, DET_ALERT=="Alert"))*100/nrow(consample06), nrow(filter(consample06, DET_ALERT=="Not Alert"))*100/nrow(consample06), nrow(filter(consample06, DET_ALERT=="Unknown"))*100/nrow(consample06), 100)
+                   ,"Count(2015)"=c(nrow(filter(consample15, DET_ALERT=="Alert")), nrow(filter(consample15, DET_ALERT=="Not Alert")), nrow(filter(consample15, DET_ALERT=="Unknown")), nrow(consample15)),
+                   "Percent(2015)"=c(nrow(filter(consample15, DET_ALERT=="Alert"))*100/nrow(consample15), nrow(filter(consample15, DET_ALERT=="Not Alert"))*100/nrow(consample15), nrow(filter(consample15, DET_ALERT=="Unknown"))*100/nrow(consample15), 100))
+rownames(table4)<-c("Smoke alarm alerted occupants", "Smoke alarm did not alert occupants", "Unknown", "Total Incidents")
+
+
+kable(table4, format = "html", digits=4, caption='Table 4. Samples of Smoke Alarm Data for Confined Residential Building Fires (2006/2015)')
+```
+
+```{r}
+# Then we could do a hypothesis testing on proportion on Smoke alarms alerted people
+options("scipen"=100, "digits"=4)
+prop.test(c(3270, 3573), 
+          c(8314, 7934), correct = F, alternative = "less")
+# Since p-value is so small, we reject the null hypothesis so that we can conclude the proportion is significantly different at level of significant 0.05 
+```
+
+
+
+
+```{r}
+# remove unnecessary datasets
+rm(samplewhole)
+```
+
+```{r}
+# For nonconfind fires, we have to rely on detector presence (DETECTOR)
+# 1 Present. N None present. U Undetermined
+
+# detector operation (DET_OPERAT), 
+# 1 Fire too small to activate detector. 2 Detector operated. 3 Detector failed to operate. U Undetermined.
+
+# and detector effectiveness (DET_EFFECT) from the fire incident table
+# 1 Detector alerted occupants, occupants responded. 2 Detector alerted occupants, occupants failed to respond. 3 There were no occupants. 4 Detector failed to alert occupants. U Undetermined.
+
+# smoking alarms data are in fire incident file
+# I still choose 4 years 2006/2009/2012/2015 and sample them
+set.seed(17)
+fin06<-read.dbf("2006/fireincident.dbf")
+samplefin06<-sample_n(fin06, 40000)
+rm(fin06)
+
+fin09<-read.dbf("2009/fireincident.dbf")
+samplefin09<-sample_n(fin09, 40000)
+rm(fin09)
+
+fin12<-fread("2012/fireincident.txt", sep="^")
+samplefin12<-sample_n(fin12, 40000)
+rm(fin12)
+
+fin15<-fread("2015/fireincident.txt", sep="^")
+samplefin15<-sample_n(fin15, 40000)
+rm(fin15)
+
+# combine all samples
+finin<-rbind(samplefin06, samplefin09)
+finin<-rbind(finin, samplefin12)
+finin<-rbind(finin, samplefin15)
+rm(samplefin06, samplefin09, samplefin12, samplefin15)
+
+# So we focus on 'finin' data set which consists of 160000 rows of smoke alarms data 
+# First replace the code in DETECTOR column
+finin$DETECTOR<-sub("1", "present", finin$DETECTOR)
+for(i in 1:nrow(finin)){
+  if(is.na(finin[i,70])==FALSE){
+    if(finin[i, 70]=="n"){
+    finin[i,70]="Not present"
+    }
+  }
+}
+finin$DETECTOR<-gsub("N", "Not present", finin$DETECTOR)
+finin$DETECTOR<-mgsub(c("u", "U"), rep("Undetermined", 2), finin$DETECTOR)
+finin$DETECTOR[is.na(finin$DETECTOR)]<-"None/Blank"
+# Then we can make a table 5 explaining the percentage of each detector status
+table5<-data.frame("Presence of Smoke Alarms"=c("Present", "Not present", "None/Blank", "Undetermined"),
+                   "Percent"=c(100*nrow(filter(finin, DETECTOR=="present"))/nrow(finin),100*nrow(filter(finin, DETECTOR=="Not present"))/nrow(finin),100*nrow(filter(finin, DETECTOR=="None/Blank"))/nrow(finin),100*nrow(filter(finin, DETECTOR=="Undetermined"))/nrow(finin)))
+
+k1<-kable(table5, format = "html", digits=4, caption = "Table 5a. Presence of Smoke Alarms in Non-confined Residential Building Fires (2006/2009/2012/2015)")
+k1
+```
+
+```{r}
+# Then we would look at detector operation (DET_OPERAT), 
+# 1 Fire too small to activate detector. 2 Detector operated. 3 Detector failed to operate. U Undetermined.
+# We only consider 11.81 percent of present detector
+
+# calculate the rows of '1' Fire too small to activate detector
+a1<-nrow(filter(finin, DET_OPERAT=="1"))
+#  2 Detector operated.
+a2<-nrow(filter(finin, DET_OPERAT=="2"))
+# 3 Detector failed to operate
+a3<-nrow(filter(finin, DET_OPERAT=="3"))
+# U Undetermined
+a4<-nrow(filter(finin, DET_OPERAT=="U"))
+table5b<-data.frame("Smoke alarm Operation Status"= c("Fire too small to activate detector", "Detector operated", "Detector failed to operate", "Undetermined", "Total"), 
+                    "Percent"=c(100*a1/nrow(finin), 100*a2/nrow(finin), 100*a3/nrow(finin), 100*a4/nrow(finin), 100*nrow(filter(finin, DETECTOR=="present"))/nrow(finin)))
+k2<-kable(table5b, format = "html", digits=2, caption = "Table 5b. Smoke Alarm Operational Status for Non-confined Residential Building Fires (2006/2009/2012/2015), continued with Table 5")
+
+k2
+```
+```{r}
+# combine a whole table 
+kable(list(table5, table5b), format="html", caption = "Table 5. Presence and Operational Status of Smoke Alarms in Non-confined Residential Building Fires (2006/2009/2012/2015)", digits=2)
+```
+```{r}
+# remove unnecessary datasets
+rm(finin, consample06, consample15, sample06, sample15, nonsample, resi2007, resi2008, resi2010, resi2011, resi2013)
+```
+## Section 8: Mapping the dollar loss for 2006 and 2015
+In this section, I decide to use ggmaps to map two years (2006 and 2015) residential fires distribution over thw whole country based on dollar loss and compare the distribution of fire incident loss. 
+First, I read the incident address file in 2006 and 2015. Then I left join each with residential fire data of 2006 and 2015 in previous section. I sample the final version residential fire data, each with 50000 rows. I load zipcode package which contains all the zipcodes and the corresponding longitude and latitude. I merge the sample with zipcode dataset to get longitude and latitude for further ggmap use. Finally, I use ggmap to map the dollar loss for fire incident over the whole country. 
+Figure7a and Figure7b shows that the distribution and the relative amount of dollar loss for 2006 and 2015. Most of the fire that cause dollar loss happen in eastern area and california bay area for both years. As we can see from the circle size, the significantly large dollar loss incidents happen at mid-area and bay area, Dallas, Colorado or San Francisco in 2006, while in 2015, most of them happen at eastern area. Besides that, the amount of large dollar loss for the sample 2006 is bigger than that for the sample 2015.
+```{r}
+
+incidentaddress06<-read.dbf("2006/incidentaddress.dbf") 
+# left_join with residential fire data 2006
+resi2006<-left_join(resi2006, incidentaddress06)
+# add up property loss and contents loss to form dollar loss
+# add up injuries for civilian and firefighter
+resi2006$DOLLAR_LOSS<-resi2006$PROP_LOSS+resi2006$CONT_LOSS
+resi2006$INJ<-resi2006$FF_INJ+resi2006$OTH_IN
+# sample residential 2006 since it's so large
+set.seed(17)
+sample06<-sample_n(resi2006, 50000)
+# load maps and dataset zipcode to convert all zipcodes to longitude and latitude
+require(ggmap)
+require(zipcode)
+data(zipcode)
+nrow(zipcode)
+# merge sample06 with zipcode dataset to get longitude and latitude
+sample06 = merge(sample06, zipcode, by.x='ZIP5', by.y='zip')
+
+map<-get_map(location='united states', zoom=4,
+             source='google',color='color')
+
+options(scipen = 100, digits=4)
+
+# use circle to show relative dollar loss amount for 2006
+circle_scale_amt = 0.00001 # make the circles 0.001% of the size!
+Figure7a<-ggmap(map)+geom_point(data=sample06,
+        aes(x=longitude, y=latitude), col="orange", alpha=0.4, size=sample06$DOLLAR_LOSS*circle_scale_amt, na.rm=T)+scale_size_continuous(range=range(sample06$DOLLAR_LOSS))+ggtitle("Figure7a. Residential Fire Distribution for United States Grouped by Dollar Loss for 2006")+theme(plot.title = element_text(size = 10))
+
+Figure7a
+```
+
+
+```{r}
+incidentaddress15<-fread("2015/incidentaddress.txt", sep="^")
+# left_join with residential fire data 2015
+
+resi2015<-left_join(resi2015, incidentaddress15)
+# add up property loss and contents loss to form dollar loss
+resi2015$DOLLAR_LOSS<-resi2015$PROP_LOSS+resi2015$CONT_LOSS
+resi2015$INJ<-resi2015$FF_INJ+resi2015$OTH_IN
+# sample residential 2015 since it's so large
+set.seed(17)
+sample15<-sample_n(resi2015, 50000)
+
+# merge dsample15 with zipcode dataset to get longitude and latitude
+sample15 = merge(sample15, zipcode, by.x='ZIP5', by.y='zip')
+
+qmap("united states", zoom=4)
+
+# map it 
+map<-get_map(location='united states', zoom=4,
+             source='google',color='color')
+
+options(scipen = 100, digits=4)
+
+# use circle to show relative dollar loss amount for 2015
+circle_scale_amt = 0.00001 # make the circles 0.001% of the size!
+Figure7b<-ggmap(map)+geom_point(data=sample15,
+        aes(x=longitude, y=latitude), col="orange", alpha=0.4, size=sample15$DOLLAR_LOSS*circle_scale_amt, na.rm=T)+scale_size_continuous(range=range(sample15$DOLLAR_LOSS))+ggtitle("Figure7b. Residential Fire Distribution for United States Grouped by Dollar Loss for 2015")+theme(plot.title = element_text(size = 10))
+
+Figure7b
+        
+```
+
+
+```{r}
+# remove all variables
+rm(list=ls())
+```
+
+
+
+
